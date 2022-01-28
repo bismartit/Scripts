@@ -1,0 +1,81 @@
+
+SET GenerateRandomNumber = 'round(Rand()*($2-$1)+$1,$3)';
+
+[M_words]:
+mapping
+load * inline
+[word,word_norm
+Adrian Durham,**REDACTED 1**
+A Durham,**REDACTED 2**
+Adrian,**REDACTED 3**
+];
+
+map_seasonal:
+Mapping Load
+  RowNo() as Month,
+  1 + sin(RowNo())/2 as SeasonalFactor
+autogenerate(12);
+
+Table:
+LOAD
+  Rowno() as Order,
+  $(GenerateRandomNumber(1,100,1)) as Customer,
+  $(GenerateRandomNumber(1,12,1)) as Month,
+  $(GenerateRandomNumber(1,10000,1)) as [Sales dummy],
+  
+  Pick(Ceil(6*Rand()*Rand()*Rand()*Rand()*Rand()),
+  'Expenses for Adrian Durham',
+  'Expenses for Adrian',
+  'Expenses for Vivienne Sacco',
+  'Expenses for A Durham', 
+  'Adrian Durham Travel Reimbursments'
+  ) as Narrative
+ autogenerate(10000);
+
+Left join (Table)
+LOAD
+  Order,
+  Customer,
+  ApplyMap('map_seasonal', Month,1)  * [Sales dummy] as Sales
+Resident Table;
+drop field [Sales dummy];
+
+Seasonal:
+NoConcatenate Load
+*,
+mapsubstring('M_words',Narrative)  as Narrative_Redacted
+resident Table;
+drop table Table;
+
+
+
+//===========================================================================
+
+Set vRandA1_Max = $(GenerateRandomNumber(20,100,0.001));
+Set vRandA1_Min = $(GenerateRandomNumber(20,60,0.001));
+Set vRandB1_Max = $(GenerateRandomNumber(100,120,0.001));
+Set vRandB1_Min = $(GenerateRandomNumber(10,30,0.001));
+Set vRandA2_Max = $(GenerateRandomNumber(40,60,0.001));
+Set vRandA2_Min = $(GenerateRandomNumber(70,80,0.001));
+Set vRandB2_Max = $(GenerateRandomNumber(100,120,0.001));
+Set vRandB2_Min = $(GenerateRandomNumber(50,70,0.001));
+Set fxGaussianRandomA = sqrt(-2*log(rand())) * cos(2* pi() * rand());
+Set fxGaussianRandomB = sqrt(-2*log(rand())) * cos(2* pi() * rand());
+
+Gaussian:
+LOAD
+Rowno() as Bubble,
+  round(($(fxGaussianRandomA) * $(vRandA1_Max)) + $(vRandA1_Min)) AS A,
+  round(($(fxGaussianRandomB) * $(vRandB1_Max)) + $(vRandB1_Min)) AS B,
+  $(GenerateRandomNumber(2,100,1))                                AS BubbleSize,
+  1                                                               AS BubbleColor
+AUTOGENERATE(500);
+
+concatenate(Gaussian)
+LOAD
+  Rowno() as Bubble,
+  round(($(fxGaussianRandomA) * $(vRandA2_Max)) + $(vRandA2_Min)  AS A,
+  round(($(fxGaussianRandomB) * $(vRandB2_Max)) + $(vRandB2_Min)) AS B,
+  $(GenerateRandomNumber(2,100,1))                                AS BubbleSize,
+  2                                                               AS BubbleColor
+AUTOGENERATE(400);

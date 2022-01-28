@@ -1,0 +1,26 @@
+//     ==== Load Transactions ==================================================
+ 
+Data:
+LOAD today() + 120 AS Date,
+     'A' AS Key1
+AUTOGENERATE 1;
+ 
+//     ==== Load Intervals ==================================================
+ 
+RM:
+LOAD
+     Start,
+     End,
+     'A' AS Key1,
+     ReportingMonth
+FROM
+Filename;
+ 
+ 
+//     ==== Link Fields from Data with Contract into the Contract-Table ========
+       INNER JOIN INTERVALMATCH (Date, Key1) LOAD Start, End, Key1 RESIDENT RM;
+ 
+//     ==== Join into one Table only, remove contract-Data =====================
+       JOIN (Data) LOAD * RESIDENT RM;
+       DROP TABLE RM;
+       DROP FIELD Date, Start, End, Key1;

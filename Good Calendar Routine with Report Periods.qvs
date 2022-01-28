@@ -1,0 +1,127 @@
+
+
+SET vFiscalYearStartMonth = 4;
+LET vStartDate = Num(YearStart(Today(), -5));
+LET vEndDate = Num(YearEnd(Today()));
+
+set vToday = TODAY();
+//set vToday = date(makedate(2018,1,9),'DD/MM/YYYY');
+
+Calendar:
+Load
+*,
+Date as %KEY_CALENDAR,
+    IF("Date" > DATE($(vToday)),1) AS "Future dates"
+    , IF("Date" = DATE($(vToday)),1) AS "Today"
+       , IF("Date" = DATE($(vToday)-1),1) AS "Yesterday"
+
+       , IF(WEEK("Date") = WEEK($(vToday)) AND (Year("Date") = YEAR($(vToday))),1) AS "Current week"
+       , IF(WEEKSTART("Date") = WEEKSTART(DATE(NUM($(vToday))-7)),1) AS "Last week"
+       , IF(MONTH("Date") = MONTH($(vToday)) AND (Year("Date") = YEAR($(vToday))), 1) AS "Current month"
+       , IF(MONTHSTART("Date") = MONTHSTART(ADDMONTHS($(vToday),-1)), 1) AS "Last month"
+       
+       , IF(Year("Date") = YEAR($(vToday)) AND "Date" <= $(vToday), 1) AS "Current year to date"
+       , IF(Year("Date") = YEAR(ADDYEARS($(vToday),-1)) AND ("Date" <= ADDYEARS($(vToday),-1)), 1) AS "Last year to date"
+
+       , IF(MONTH("Date") = MONTH($(vToday)) AND (Year("Date") = YEAR($(vToday))) AND ("Date" <= $(vToday)), 1) AS "Current month to date"
+       , IF(Year("Date") = YEAR(ADDYEARS($(vToday),-1)) and MONTHSTART("Date") = MONTHSTART(ADDMONTHS($(vToday),-12 )) AND ("Date" <= ADDYEARS($(vToday),-1)), 1) AS "Last year month to date"
+       , IF(MONTHSTART("Date") = MONTHSTART(ADDMONTHS($(vToday),-1)) AND ("Date" <= ADDMONTHS($(vToday),-1)), 1) AS "Last month to date"
+
+       , IF("Date" > DATE($(vToday)-7) AND "Date" <= DATE($(vToday)), 1) AS "Rolling 7 days"
+       , IF(WEEKSTART("Date") >= WEEKSTART($(vToday)-(7*3)) AND "Date" <= DATE($(vToday)), 1) AS "Rolling 3 weeks"
+       , IF(MONTHSTART("Date") > MONTHSTART(ADDMONTHS($(vToday),-3)) AND "Date" <= DATE($(vToday)), 1) AS "Rolling 3 months"
+       , IF(MONTHSTART("Date") > MONTHSTART(ADDMONTHS($(vToday),-12)) AND "Date" <= DATE($(vToday)), 1) AS "Rolling 12 months"
+
+;      
+
+
+LOAD
+*,
+WeekYear(Date) & '-' &  IF(Week(weekstart(Date))<=9, '0' & Week(weekstart(Date)), Week(weekstart(Date))) as Cal_YearWeek,
+IF(Week(Date)<=9, '0' & Week(Date), Week(Date)) as Cal_Week,
+IF(autonumber(Weekstart(Date), yearstart(Weekstart(Date),0,$(vFiscalYearStartMonth)) )   <=9, '0' & autonumber(Weekstart(Date), yearstart(Weekstart(Date),0,$(vFiscalYearStartMonth)) )      ,
+autonumber(Weekstart(Date), yearstart(Weekstart(Date),0,$(vFiscalYearStartMonth)) ))     as Fin_Week,
+
+YearName(Date, 1) & '-' & IF(autonumber(Weekstart(Date), yearstart(Weekstart(Date),0,$(vFiscalYearStartMonth)) )       <=9, '0' & autonumber(Weekstart(Date), yearstart(Weekstart(Date),0,$(vFiscalYearStartMonth)) )       ,
+autonumber(Weekstart(Date), yearstart(Weekstart(Date),0,$(vFiscalYearStartMonth)) )) as Fin_YearWeek,
+
+//date(weekstart(Date), 'DD/MM/YYYY') as Cal_WeekStart,
+//date(weekend(Date), 'DD/MM/YYYY') as Cal_WeekEnd,
+
+'Cal Week ' & IF(Week(Date)<=9, '0' & Week(Date), Week(Date)) & chr(10) & date(weekstart(Date), 'DD/MM/YYYY') & ' - ' & date(weekend(Date), 'DD/MM/YYYY') as Cal_Week_Desc,
+'Fin Week ' & IF(autonumber(Weekstart(Date), yearstart(Weekstart(Date),0,$(vFiscalYearStartMonth)) )       <=9, '0' & autonumber(Weekstart(Date), yearstart(Weekstart(Date),0,$(vFiscalYearStartMonth)) )       ,
+autonumber(Weekstart(Date), yearstart(Weekstart(Date),0,$(vFiscalYearStartMonth)) )) & chr(10) & date(weekstart(Date), 'DD/MM/YYYY') & ' - ' & date(weekend(Date), 'DD/MM/YYYY') as Fin_Week_Desc
+;
+
+
+LOAD
+*,
+Dual('Q' & Ceil(Fin_Month/3), Ceil(Fin_Month/3)) AS Fin_Quarter, // Fiscal Calendar Quarter
+Dual(Text(Date(MonthEnd(Date), 'MMM')), Fin_Month) AS Fin_MonthName; // Fiscal Calendar Month Name
+
+LOAD
+*,
+Year(Date) AS Cal_Year, // Standard Calendar Year
+if(len(NUM(Month(Date))) =1, '0' & NUM(Month(Date)), NUM(Month(Date))) AS Cal_Month, // Standard Calendar Month
+Date(MonthEnd(Date), 'MMM') AS Cal_MonthName,  // Standard Calendar Month Name
+Dual('Q' & Ceil(Month(Date)/3), Ceil(Month(Date)/3)) AS Cal_Quarter,  // Standard Calendar Quarter
+
+IF(Mod(Month(Date) - $(vFiscalYearStartMonth), 12)+1<=9, '0' & text(Mod(Month(Date) - $(vFiscalYearStartMonth), 12)+1) , Mod(Month(Date) - $(vFiscalYearStartMonth), 12)+1) AS Fin_Month,  // Fiscal Calendar Month
+YearName(Date, 0, $(vFiscalYearStartMonth)) AS Fin_YearRange, // Fiscal Calendar Year
+RIGHT(YearName(Date, 0, $(vFiscalYearStartMonth)),4) AS Fin_Year // Fiscal Calendar Year
+
+;  
+
+LOAD
+Date($(vStartDate) + RangeSum(Peek('RowNum'), 1) - 1) AS Date,
+RangeSum(Peek('RowNum'), 1) AS RowNum
+AutoGenerate vEndDate - vStartDate + 1;
+
+
+// Reporting Periods
+ReportPeriods:
+Load %KEY_CALENDAR , 'Future Dates' as [Reporting Period] resident Calendar where "Future dates" =1;
+Load %KEY_CALENDAR , 'Today' as [Reporting Period] resident Calendar where "Today" =1;
+Load %KEY_CALENDAR , 'Yesterday' as [Reporting Period] resident Calendar where "Yesterday" =1;
+
+Load %KEY_CALENDAR , 'Current week' as [Reporting Period] resident Calendar where "Current week" =1;
+Load %KEY_CALENDAR , 'Last week' as [Reporting Period] resident Calendar where "Last week" =1;
+
+Load %KEY_CALENDAR , 'Current month' as [Reporting Period] resident Calendar where "Current month" =1;
+Load %KEY_CALENDAR , 'Last month' as [Reporting Period] resident Calendar where "Last month" =1;
+
+Load %KEY_CALENDAR , 'Current year to date' as [Reporting Period] resident Calendar where "Current year to date" =1;
+Load %KEY_CALENDAR , 'Last year to date' as [Reporting Period] resident Calendar where "Last year to date" =1;
+
+Load %KEY_CALENDAR , 'Current month to date' as [Reporting Period] resident Calendar where "Current month to date" =1;
+Load %KEY_CALENDAR , 'Last month to date' as [Reporting Period] resident Calendar where "Last month to date" =1;
+Load %KEY_CALENDAR , 'Last year month to date' as [Reporting Period] resident Calendar where "Last year month to date" =1;
+
+Load %KEY_CALENDAR , 'Rolling 7 days' as [Reporting Period] resident Calendar where "Rolling 7 days" =1;
+Load %KEY_CALENDAR , 'Rolling 3 weeks' as [Reporting Period] resident Calendar where "Rolling 3 weeks" =1;
+Load %KEY_CALENDAR , 'Rolling 3 months' as [Reporting Period] resident Calendar where "Rolling 3 months" =1;
+Load %KEY_CALENDAR , 'Rolling 12 months' as [Reporting Period] resident Calendar where "Rolling 12 months" =1;
+
+
+
+
+drop fields 
+"Future dates"
+,Today
+,Yesterday
+,"Current week"
+,"Last week"
+,"Current month"
+,"Last month"
+,"Current year to date"
+,"Last year to date"
+,"Current month to date"
+,"Last year month to date"
+,"Last month to date"
+,"Rolling 7 days"
+,"Rolling 3 weeks"
+,"Rolling 3 months"
+,"Rolling 12 months"
+;
+
+This document is strictly confidential and is intended for use by the addressee unless otherwise indicated. Allied Irish Banks AIB and AIB Group are registered business names of Allied Irish Banks p.l.c. Allied Irish Banks, p.l.c. is regulated by the Central Bank of Ireland. Registered Office: Bankcentre, Ballsbridge, Dublin 4. Tel: + 353 1 6600311; Registered in Ireland: Registered No. 24173. First Trust Bank is a trade mark of AIB Group (UK) p.l.c. The AIB logo, Allied Irish Bank (GB) and Allied Irish Bank (GB) Savings Direct are trademarks used under licence by AIB Group (UK) p.l.c. AIB Group (UK) p.l.c is incorporated in Northern Ireland. Registered Office 92 Ann Street, Belfast BT1 3HH. Registered Number NI018800. Authorised by the Prudential Regulation Authority and regulated by the Financial Conduct Authority and the Prudential Regulation Authority. ~~~~~~~Please consider the environment before printing this Email~~~~~~~~ This email has been scanned by an external Email Security System. This Disclaimer has been generated by CMDis 
